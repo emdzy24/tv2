@@ -105,13 +105,17 @@ Chosen for a multiplayer web game with accounts, persistence, and async sim:
 **Core loop first, multiplayer next.** Get to something playable fast, then layer
 in online leagues.
 
-### Milestone 1 — Playable single-player prototype (the MVP)
+### Milestone 1 — Playable single-player prototype (the MVP) ✅ built (mock data)
 The end-to-end loop working:
-1. Sign up / log in (accounts + cloud save).
-2. Pick a EuroLeague club.
-3. View/manage roster and set a lineup + basic tactics.
-4. Sim a game (stat-based) and view the box score.
-5. See standings update; advance to the next fixture.
+1. ~~Sign up / log in~~ → **mock login** (username only; real auth in M3). ✅
+2. Pick a EuroLeague club (all 18 teams). ✅
+3. View/manage roster and set a lineup + tactics. ✅
+4. Sim a game (stat-based) and view the box score. ✅
+5. See standings update; advance to the next fixture. ✅
+
+Implemented with React + Vite over a **mock data layer** (`src/data`,
+`src/engine`, `src/state`) that persists to browser localStorage. The store API
+is shaped to be swapped for Supabase with minimal churn.
 
 ### Milestone 2 — Depth
 Detailed attributes & development, deep tactics, injuries/morale, finances &
