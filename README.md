@@ -5,9 +5,10 @@ head coach and general manager of a real EuroLeague club — build your roster, 
 deep tactics, sim games, and compete across multiple seasons against AI and other
 managers.
 
-> 🚧 Early development — **Milestone 1 prototype is playable** (mock data, no
-> backend yet). See **[GUIDELINES.md](./GUIDELINES.md)** for the full vision,
-> feature set, tech direction, and build roadmap.
+> 🚧 Early development — **Milestones 1 & 2 are playable** (mock data, no
+> backend yet): full multi-season career with playoffs, awards, development,
+> injuries, finances and transactions. See **[GUIDELINES.md](./GUIDELINES.md)**
+> for the full vision, feature set, tech direction, and build roadmap.
 
 ## Getting started
 
@@ -22,8 +23,9 @@ No accounts or servers required yet: the prototype uses **mock EuroLeague data**
 and saves your career in the browser (localStorage). A real backend (Supabase
 auth + database + multiplayer) replaces this in a later milestone.
 
-## What works today (Milestone 1)
+## What works today
 
+**Milestone 1 — core loop**
 - **Mock login** (enter a manager name — no password yet).
 - **Pick a club** from all 18 real EuroLeague teams (real rosters seeded with
   known stars + generated depth; ratings are illustrative).
@@ -33,7 +35,22 @@ auth + database + multiplayer) replaces this in a later milestone.
   simulates around you.
 - **Standings** — live table, top-8 playoff line, point-differential tiebreak.
 - **Stats** — per-game season averages for your squad.
-- Progress **auto-saves** to your browser; restart anytime.
+
+**Milestone 2 — depth & career**
+- **In-game adjustments** — play a match in two halves and change tactics at
+  halftime (or Quick-sim to skip).
+- **Injuries** — players can get hurt mid-game and miss weeks; they recover over time.
+- **Playoffs** — top-8 bracket: best-of-5 quarterfinals then a single-game Final
+  Four, with a champion crowned. You play your own playoff games.
+- **Awards** — season MVP, scoring champion, and All-EuroLeague First Team.
+- **Offseason & multi-season career** — players age, develop toward their
+  potential or decline, veterans retire, rosters refill, and a fresh season
+  begins with a new schedule.
+- **Finances** — per-team budget, payroll, and a soft salary cap.
+- **Transactions** — sign/waive free agents and propose trades (AI accepts or
+  rejects based on value).
+
+Progress **auto-saves** to your browser; restart anytime.
 
 ## At a glance
 

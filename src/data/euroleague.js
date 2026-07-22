@@ -157,7 +157,7 @@ function buildPlayer(rng, { id, name, pos, base, age, isStar }) {
     form: 0, // -5..+5 recent form
     injuredWeeks: 0,
     // Contract (illustrative €M/season) — used by finances later.
-    salary: +(0.3 + (overall - 60) * 0.28 + rng() * 0.6).toFixed(1),
+    salary: +(0.2 + Math.max(0, overall - 60) * 0.12 + rng() * 0.4).toFixed(1),
     contractYears: 1 + Math.floor(rng() * 4),
   }
 }
@@ -250,6 +250,42 @@ export function buildLeague() {
     }
   })
 }
+
+// Recompute a player's overall from current attributes (after development).
+export function recomputeOverall(p) {
+  const a = p.attrs
+  return Math.round(
+    (a.insideScoring +
+      a.outsideScoring +
+      a.playmaking +
+      a.rebounding +
+      a.perimeterDefense +
+      a.interiorDefense +
+      a.athleticism +
+      a.basketballIQ) /
+      8,
+  )
+}
+
+// Team overall = average of the top-8 players by overall.
+export function computeTeamOverall(players) {
+  const top = [...players].sort((a, b) => b.overall - a.overall).slice(0, 8)
+  return Math.round(top.reduce((s, p) => s + p.overall, 0) / Math.max(1, top.length))
+}
+
+// Create a single player deterministically from a seed string. Used by the
+// offseason (free agents / prospects) and free agency.
+export function makePlayer(seedStr, { id, name, pos, base, age, isStar = false }) {
+  const rng = makeRng(seedFromString(seedStr))
+  if (!name) {
+    const fn = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)]
+    const ln = LAST_NAMES[Math.floor(rng() * LAST_NAMES.length)]
+    name = `${fn} ${ln}`
+  }
+  return buildPlayer(rng, { id, name, pos, base, age, isStar })
+}
+
+export { POSITIONS }
 
 export function teamPrimaryColor(team) {
   return team.colors[0]

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Badge } from './ui.jsx'
 
-export default function Dashboard({ state, standings, nextFixture, onPlay, seasonOver }) {
+export default function Dashboard({ state, standings, matchTarget, onPlay, phase }) {
   const team = state.teams.find((t) => t.id === state.userTeamId)
   const myRow = standings.find((s) => s.id === state.userTeamId)
   const rank = standings.findIndex((s) => s.id === state.userTeamId) + 1
@@ -11,8 +11,8 @@ export default function Dashboard({ state, standings, nextFixture, onPlay, seaso
     .slice(-5)
     .reverse()
 
-  const opp = nextFixture
-    ? state.teams.find((t) => t.id === (nextFixture.home === team.id ? nextFixture.away : nextFixture.home))
+  const opp = matchTarget
+    ? state.teams.find((t) => t.id === (matchTarget.home.id === team.id ? matchTarget.away.id : matchTarget.home.id))
     : null
 
   return (
@@ -23,7 +23,7 @@ export default function Dashboard({ state, standings, nextFixture, onPlay, seaso
             <Badge team={team} size={48} />
             <div>
               <h1 style={{ fontSize: 22 }}>{team.name}</h1>
-              <div className="muted">{team.city}, {team.country} · Season {state.season}</div>
+              <div className="muted">{team.city}, {team.country} · Season {state.season}{phase === 'playoffs' ? ' · Playoffs' : ''}</div>
             </div>
           </div>
         </div>
@@ -39,9 +39,7 @@ export default function Dashboard({ state, standings, nextFixture, onPlay, seaso
       <div className="grid grid-2">
         <div className="panel">
           <h2>Next match</h2>
-          {seasonOver ? (
-            <div className="notice">Regular season complete. Playoffs & multi-season rollover arrive in Milestone 2.</div>
-          ) : opp ? (
+          {matchTarget && opp ? (
             <>
               <div className="scoreline" style={{ marginTop: 6 }}>
                 <div className="team-side">
@@ -55,12 +53,15 @@ export default function Dashboard({ state, standings, nextFixture, onPlay, seaso
                 </div>
               </div>
               <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>
-                Round {nextFixture.round} · {nextFixture.home === team.id ? 'Home' : 'Away'} · Opponent OVR {opp.overall}
+                {matchTarget.label} · {matchTarget.home.id === team.id ? 'Home' : 'Away'} · Opponent OVR {opp.overall}
+                {matchTarget.seriesInfo ? ` · ${matchTarget.seriesInfo}` : ''}
               </div>
               <button className="btn-primary" style={{ marginTop: 14, width: '100%' }} onClick={onPlay}>
                 Go to matchday ▶
               </button>
             </>
+          ) : phase === 'playoffs' ? (
+            <div className="notice">Your season is over — you didn't advance. Watch the bracket play out on the Playoffs tab.</div>
           ) : (
             <p className="muted">No upcoming fixtures.</p>
           )}

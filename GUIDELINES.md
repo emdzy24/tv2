@@ -117,10 +117,19 @@ Implemented with React + Vite over a **mock data layer** (`src/data`,
 `src/engine`, `src/state`) that persists to browser localStorage. The store API
 is shaped to be swapped for Supabase with minimal churn.
 
-### Milestone 2 — Depth
-Detailed attributes & development, deep tactics, injuries/morale, finances &
-salary cap, trades & signings, full schedule + playoffs + awards, multi-season
-career rollover.
+### Milestone 2 — Depth ✅ built (mock data)
+- Halftime tactical adjustments (two-half sim + Quick-sim). ✅
+- In-match injuries (rated by minutes/durability/aggression) + recovery. ✅
+- Playoffs: top-8, best-of-5 QF, single-game Final Four, champion. ✅
+- Season awards: MVP, scoring champ, All-EuroLeague First Team. ✅
+- Multi-season rollover: aging, development toward potential, decline,
+  retirements, roster refill, fresh schedule. ✅
+- Finances: budget, payroll, soft salary cap. ✅
+- Transactions: free-agent signing/waiving + trades with AI acceptance. ✅
+
+Engines live in `src/engine/` (`sim`, `schedule`, `playoffs`, `awards`,
+`offseason`); the mock save layer in `src/state/store.js` now models phases
+(`regular → playoffs → offseason → preseason → regular`).
 
 ### Milestone 3 — Multiplayer
 Shared leagues, private leagues (invite codes), head-to-head, asynchronous match

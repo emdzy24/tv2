@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import {
   currentUser, logout, loadSave, persist, clearSave, newCareer,
-  standings as computeStandings, userNextFixture, simulateUserGame,
-  isSeasonOver,
+  standings as computeStandings, userNextFixture, userPlayoffGame,
+  simulateUserGame, finishUserFixture, simulateUserPlayoffGame, finishUserPlayoffGame,
+  processOffseason, beginNextSeason, seriesLabel,
+  signFreeAgent, waivePlayer, proposeTrade, getTeam,
 } from './state/store.js'
+import { simulateHalf, combineHalves } from './engine/sim.js'
 import Login from './components/Login.jsx'
 import TeamSelect from './components/TeamSelect.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -11,128 +14,183 @@ import Roster from './components/Roster.jsx'
 import Standings from './components/Standings.jsx'
 import Stats from './components/Stats.jsx'
 import Match from './components/Match.jsx'
-
-const TABS = [
-  ['dashboard', 'Dashboard'],
-  ['roster', 'Roster & Lineup'],
-  ['standings', 'Standings'],
-  ['stats', 'Stats'],
-]
+import Playoffs from './components/Playoffs.jsx'
+import Offseason from './components/Offseason.jsx'
+import Transactions from './components/Transactions.jsx'
 
 export default function App() {
   const [user, setUser] = useState(() => currentUser())
   const [save, setSave] = useState(() => loadSave())
   const [tab, setTab] = useState('dashboard')
   const [view, setView] = useState('main') // 'main' | 'match'
+  const [matchPhase, setMatchPhase] = useState('pregame') // pregame|halftime|final
+  const [half1, setHalf1] = useState(null)
   const [matchResult, setMatchResult] = useState(null)
+  const [matchCtx, setMatchCtx] = useState(null) // captured game context for the match view
   const [, force] = useState(0)
+  const rerender = () => force((n) => n + 1)
 
-  // Persist + re-render helper after mutating the save object in place.
-  function commit() {
-    persist(save)
-    force((n) => n + 1)
-  }
+  function commit() { persist(save); rerender() }
 
-  // --- not logged in ---
   if (!user) {
-    return (
-      <div className="app">
-        <Login onLogin={(u) => setUser(u)} />
-      </div>
-    )
+    return <div className="app"><Login onLogin={setUser} /></div>
   }
-
-  // --- logged in, no career yet ---
   if (!save) {
     return (
       <div className="app">
         <TopBar user={user} onLogout={handleLogout} />
-        <TeamSelect
-          onPick={(teamId) => {
-            const s = newCareer(teamId)
-            setSave(s)
-            setTab('dashboard')
+        <TeamSelect onPick={(teamId) => { setSave(newCareer(teamId)); setTab('dashboard') }} />
+      </div>
+    )
+  }
+
+  function handleLogout() { logout(); setUser(null) }
+  function handleRestart() {
+    if (!confirm('Restart career? This deletes your current save.')) return
+    clearSave(); setSave(null); setView('main'); resetMatch()
+  }
+  function resetMatch() { setMatchPhase('pregame'); setHalf1(null); setMatchResult(null) }
+
+  const team = getTeam(save, save.userTeamId)
+  const standings = computeStandings(save)
+
+  // Determine the user's current playable game (regular fixture or playoff game).
+  function getMatchTarget() {
+    if (save.phase === 'regular') {
+      const f = userNextFixture(save)
+      if (!f) return null
+      return {
+        isPlayoff: false, fixture: f,
+        home: getTeam(save, f.home), away: getTeam(save, f.away),
+        seedKey: `s${save.season}-r${f.round}`,
+        label: `Round ${f.round}`, seriesInfo: null,
+      }
+    }
+    if (save.phase === 'playoffs') {
+      const pg = userPlayoffGame(save)
+      if (!pg) return null
+      return {
+        isPlayoff: true, pg,
+        home: getTeam(save, pg.home), away: getTeam(save, pg.away),
+        seedKey: `s${save.season}-po-${pg.seriesId}-g${pg.gameIndex}`,
+        label: seriesLabel(pg.round),
+        seriesInfo: `Series ${pg.series.aWins}-${pg.series.bWins} · Game ${pg.gameIndex + 1}`,
+      }
+    }
+    return null
+  }
+  const matchTarget = getMatchTarget()
+
+  // --- offseason / preseason takes over the screen ---
+  // ...but not while the user is still viewing the result of the game that
+  // ended their season — let them dismiss it first (Continue → view 'main').
+  const viewingMatchResult = view === 'match' && matchCtx && matchResult
+  if ((save.phase === 'offseason' || save.phase === 'preseason') && !viewingMatchResult) {
+    return (
+      <div className="app">
+        <TopBar user={user} team={team} onLogout={handleLogout} onRestart={handleRestart} />
+        <Offseason
+          state={save}
+          awards={save.lastAwards}
+          report={save.lastOffseasonReport}
+          onStartNext={() => {
+            if (!save.lastOffseasonReport) processOffseason(save)
+            else { beginNextSeason(save); setTab('dashboard') }
+            rerender()
           }}
         />
       </div>
     )
   }
 
-  function handleLogout() {
-    logout()
-    setUser(null)
-  }
+  // --- match view (halftime flow) — uses matchCtx captured at kickoff so the
+  // result screen survives phase changes (e.g. season ending after the game) ---
+  if (view === 'match' && matchCtx) {
+    const { home, away, isPlayoff, seedKey, fixture } = matchCtx
+    const userIsHome = home.id === save.userTeamId
+    const buildOpts = () => ({
+      homeLineup: save.lineups[home.id], awayLineup: save.lineups[away.id],
+      homeTactics: save.tactics[home.id], awayTactics: save.tactics[away.id],
+      seedKey,
+    })
 
-  function handleRestart() {
-    if (!confirm('Restart career? This deletes your current save.')) return
-    clearSave()
-    setSave(null)
-    setView('main')
-    setMatchResult(null)
-  }
-
-  const team = save.teams.find((t) => t.id === save.userTeamId)
-  const standings = computeStandings(save)
-  const nextFixture = userNextFixture(save)
-  const seasonOver = isSeasonOver(save)
-
-  // --- match view ---
-  if (view === 'match' && nextFixture) {
     return (
       <div className="app">
         <TopBar user={user} team={team} onLogout={handleLogout} onRestart={handleRestart} />
         <div className="row" style={{ marginBottom: 14 }}>
-          <button onClick={() => { setView('main'); setMatchResult(null) }}>← Back</button>
+          <button onClick={() => { setView('main'); resetMatch() }}>← Back</button>
         </div>
         <Match
-          state={save}
-          fixture={nextFixture}
+          state={save} home={home} away={away} userIsHome={userIsHome}
+          roundLabel={matchCtx.label} seriesInfo={matchCtx.seriesInfo}
           tactics={save.tactics[save.userTeamId]}
           onTacticsChange={(t) => { save.tactics[save.userTeamId] = t; commit() }}
-          onPlay={() => {
-            const res = simulateUserGame(save)
-            setMatchResult(res)
-            force((n) => n + 1)
+          matchPhase={matchPhase} half1={half1} result={matchResult}
+          onQuickSim={() => {
+            const r = isPlayoff ? simulateUserPlayoffGame(save) : simulateUserGame(save)
+            setMatchResult(r.userResult); setMatchPhase('final'); rerender()
           }}
-          result={matchResult}
-          onContinue={() => { setMatchResult(null); setView('main'); setTab('dashboard') }}
+          onPlayFirstHalf={() => {
+            const h1 = simulateHalf(home, away, buildOpts(), 1)
+            setHalf1(h1); setMatchPhase('halftime'); rerender()
+          }}
+          onPlaySecondHalf={() => {
+            const h2 = simulateHalf(home, away, buildOpts(), 2)
+            const full = combineHalves(half1, h2, home, away, seedKey)
+            if (isPlayoff) finishUserPlayoffGame(save, full)
+            else finishUserFixture(save, fixture, full)
+            setMatchResult(full); setMatchPhase('final'); rerender()
+          }}
+          onContinue={() => { setView('main'); resetMatch(); setTab('dashboard') }}
         />
       </div>
     )
   }
+
+  // --- main tabbed view ---
+  const tabs = [
+    ['dashboard', 'Dashboard'],
+    ['roster', 'Roster & Lineup'],
+    ...(save.phase === 'playoffs' || save.playoffs ? [['playoffs', 'Playoffs']] : []),
+    ['standings', 'Standings'],
+    ['stats', 'Stats'],
+    ['transactions', 'Transactions'],
+  ]
+  const activeTab = tabs.some(([id]) => id === tab) ? tab : 'dashboard'
 
   return (
     <div className="app">
       <TopBar user={user} team={team} onLogout={handleLogout} onRestart={handleRestart} />
       <div className="nav" style={{ marginBottom: 16 }}>
-        {TABS.map(([id, label]) => (
-          <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-            {label}
-          </button>
+        {tabs.map(([id, label]) => (
+          <button key={id} className={activeTab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
 
-      {tab === 'dashboard' && (
+      {activeTab === 'dashboard' && (
         <Dashboard
+          state={save} standings={standings} matchTarget={matchTarget} phase={save.phase}
+          onPlay={() => { if (matchTarget) { setMatchCtx(matchTarget); resetMatch(); setView('match') } }}
+        />
+      )}
+      {activeTab === 'roster' && (
+        <Roster team={team} lineup={save.lineups[save.userTeamId]}
+          onLineupChange={(l) => { save.lineups[save.userTeamId] = l; commit() }} />
+      )}
+      {activeTab === 'playoffs' && <Playoffs state={save} />}
+      {activeTab === 'standings' && <Standings state={save} standings={standings} />}
+      {activeTab === 'stats' && <Stats state={save} />}
+      {activeTab === 'transactions' && (
+        <Transactions
           state={save}
-          standings={standings}
-          nextFixture={nextFixture}
-          seasonOver={seasonOver}
-          onPlay={() => { setMatchResult(null); setView('match') }}
+          onSign={(id) => { const r = signFreeAgent(save, id); rerender(); return r }}
+          onWaive={(id) => { const r = waivePlayer(save, id); rerender(); return r }}
+          onTrade={(o, g, r2) => { const r = proposeTrade(save, o, g, r2); rerender(); return r }}
         />
       )}
-      {tab === 'roster' && (
-        <Roster
-          team={team}
-          lineup={save.lineups[save.userTeamId]}
-          onLineupChange={(l) => { save.lineups[save.userTeamId] = l; commit() }}
-        />
-      )}
-      {tab === 'standings' && <Standings state={save} standings={standings} />}
-      {tab === 'stats' && <Stats state={save} />}
 
       <p className="footer-note">
-        Basketball Manager · Milestone 1 prototype · mock data (no backend yet). Progress saves in your browser.
+        Basketball Manager · Milestones 1-2 · mock data (no backend yet). Progress saves in your browser.
       </p>
     </div>
   )

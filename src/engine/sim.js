@@ -91,9 +91,10 @@ function defensiveRating(p, tactics) {
 }
 
 // Simulate one team's scoring given its rotation, opponent defense and tactics.
-function simTeamOffense(rng, rotation, oppDefense, tactics, homeEdge) {
-  const possBase = 74 + (tactics.pace - 50) * 0.16 // ~66-82 possessions
-  const possessions = Math.round(possBase + (rng() - 0.5) * 6)
+// `factor` scales the segment length (1 = full game, 0.5 = one half).
+function simTeamOffense(rng, rotation, oppDefense, tactics, homeEdge, factor = 1) {
+  const possBase = (74 + (tactics.pace - 50) * 0.16) * factor // scaled possessions
+  const possessions = Math.round(possBase + (rng() - 0.5) * 6 * factor)
 
   // Team offensive strength vs opponent defense.
   let teamOff = 0
@@ -118,7 +119,7 @@ function simTeamOffense(rng, rotation, oppDefense, tactics, homeEdge) {
     const pts = Math.max(0, Math.round(playerPoss * clampedEff * noise))
     // Peripheral stats.
     const a = u.r.player.attrs
-    const min = Math.round(u.r.minutes)
+    const min = Math.round(u.r.minutes * factor)
     const reb = Math.round((a.rebounding / 100) * (min / 40) * (rng() * 6 + 2))
     const ast = Math.round((a.playmaking / 100) * (min / 40) * (rng() * 5 + 1))
     const stl = Math.round((a.perimeterDefense / 100) * (rng() * 2))
@@ -141,9 +142,27 @@ function simTeamOffense(rng, rotation, oppDefense, tactics, homeEdge) {
   return { score, box }
 }
 
-// Main entry: simulate a game between two team objects.
-// Returns { home, away, homeScore, awayScore, homeBox, awayBox, winner }.
-export function simulateGame(homeTeam, awayTeam, opts = {}) {
+// Roll possible injuries for a team's rotation over a full game.
+// Returns array of { teamId, playerId, name, weeks }. Kept intentionally rare.
+function rollInjuries(rng, rotation, teamId, tactics) {
+  const out = []
+  const aggr = (tactics?.aggression ?? 50) / 100
+  for (const r of rotation) {
+    const p = r.player
+    const durability = (p.attrs.athleticism + p.attrs.stamina) / 2
+    // Base ~1.5% per rotation player, up with minutes, down with durability.
+    const chance =
+      0.012 * (r.minutes / 24) * (1 + aggr * 0.4) * (1 + (70 - durability) / 120)
+    if (rng() < Math.max(0.002, chance)) {
+      const weeks = 1 + Math.floor(rng() * 5) // 1-5 weeks
+      out.push({ teamId, playerId: p.id, name: p.name, weeks })
+    }
+  }
+  return out
+}
+
+// Internal core used by both full-game and per-half simulation.
+function runGame(homeTeam, awayTeam, opts, factor, segKey, withInjuries) {
   const {
     homeLineup,
     awayLineup,
@@ -152,7 +171,7 @@ export function simulateGame(homeTeam, awayTeam, opts = {}) {
     seedKey = '',
   } = opts
 
-  const rng = makeRng(hashSeed(homeTeam.id, awayTeam.id, seedKey))
+  const rng = makeRng(hashSeed(homeTeam.id, awayTeam.id, seedKey, segKey))
 
   const homeRot = buildRotation(homeTeam, homeLineup)
   const awayRot = buildRotation(awayTeam, awayLineup)
@@ -162,24 +181,77 @@ export function simulateGame(homeTeam, awayTeam, opts = {}) {
   const awayDef =
     awayRot.reduce((s, r) => s + defensiveRating(r.player, awayTactics) * (r.minutes / 200), 0)
 
-  const home = simTeamOffense(rng, homeRot, awayDef, homeTactics, 0.03)
-  const away = simTeamOffense(rng, awayRot, homeDef, awayTactics, -0.01)
+  const home = simTeamOffense(rng, homeRot, awayDef, homeTactics, 0.03, factor)
+  const away = simTeamOffense(rng, awayRot, homeDef, awayTactics, -0.01, factor)
 
-  // Avoid ties: nudge with one extra possession decided by RNG + quality.
-  let homeScore = home.score
-  let awayScore = away.score
-  if (homeScore === awayScore) {
-    if (rng() < 0.52) homeScore += 2 + Math.round(rng() * 3)
-    else awayScore += 2 + Math.round(rng() * 3)
-  }
+  const injuries = withInjuries
+    ? [
+        ...rollInjuries(rng, homeRot, homeTeam.id, homeTactics),
+        ...rollInjuries(rng, awayRot, awayTeam.id, awayTactics),
+      ]
+    : []
 
   return {
     homeId: homeTeam.id,
     awayId: awayTeam.id,
-    homeScore,
-    awayScore,
-    homeBox: home.box.sort((a, b) => b.pts - a.pts),
-    awayBox: away.box.sort((a, b) => b.pts - a.pts),
-    winner: homeScore > awayScore ? homeTeam.id : awayTeam.id,
+    homeScore: home.score,
+    awayScore: away.score,
+    homeBox: home.box,
+    awayBox: away.box,
+    injuries,
   }
+}
+
+function breakTie(res, rng) {
+  if (res.homeScore === res.awayScore) {
+    if (rng() < 0.52) res.homeScore += 2 + Math.round(rng() * 3)
+    else res.awayScore += 2 + Math.round(rng() * 3)
+  }
+  res.winner = res.homeScore > res.awayScore ? res.homeId : res.awayId
+  res.homeBox = res.homeBox.sort((a, b) => b.pts - a.pts)
+  res.awayBox = res.awayBox.sort((a, b) => b.pts - a.pts)
+  return res
+}
+
+// Main entry: simulate a full game between two team objects.
+export function simulateGame(homeTeam, awayTeam, opts = {}) {
+  const res = runGame(homeTeam, awayTeam, opts, 1, 'full', opts.injuries !== false)
+  const rng = makeRng(hashSeed(homeTeam.id, awayTeam.id, opts.seedKey || '', 'tie'))
+  return breakTie(res, rng)
+}
+
+// Simulate a single half (half = 1 or 2). Injuries only rolled in the 2nd half.
+// Returns a raw (untied) segment result — combine both halves with combineHalves.
+export function simulateHalf(homeTeam, awayTeam, opts, half) {
+  return runGame(homeTeam, awayTeam, opts, 0.5, 'h' + half, half === 2)
+}
+
+// Merge two half results into one final game result.
+export function combineHalves(h1, h2, homeTeam, awayTeam, seedKey = '') {
+  const mergeBox = (a, b) => {
+    const map = new Map()
+    for (const line of [...a, ...b]) {
+      const cur = map.get(line.id) || { ...line, min: 0, pts: 0, reb: 0, ast: 0, stl: 0, blk: 0 }
+      cur.min += line.min
+      cur.pts += line.pts
+      cur.reb += line.reb
+      cur.ast += line.ast
+      cur.stl += line.stl
+      cur.blk += line.blk
+      cur.starter = line.starter
+      map.set(line.id, cur)
+    }
+    return [...map.values()]
+  }
+  const res = {
+    homeId: homeTeam.id,
+    awayId: awayTeam.id,
+    homeScore: h1.homeScore + h2.homeScore,
+    awayScore: h1.awayScore + h2.awayScore,
+    homeBox: mergeBox(h1.homeBox, h2.homeBox),
+    awayBox: mergeBox(h1.awayBox, h2.awayBox),
+    injuries: [...(h1.injuries || []), ...(h2.injuries || [])],
+  }
+  const rng = makeRng(hashSeed(homeTeam.id, awayTeam.id, seedKey, 'tie'))
+  return breakTie(res, rng)
 }
