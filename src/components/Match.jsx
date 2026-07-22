@@ -43,6 +43,7 @@ function BoxScore({ team, box }) {
       <div className="row" style={{ marginBottom: 8 }}>
         <Badge team={team} size={26} /><strong>{team.name}</strong>
       </div>
+      <div className="table-scroll">
       <table>
         <thead>
           <tr><th>Player</th><th className="num">MIN</th><th className="num">PTS</th><th className="num">REB</th><th className="num">AST</th><th className="num">STL</th><th className="num">BLK</th></tr>
@@ -61,6 +62,7 @@ function BoxScore({ team, box }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

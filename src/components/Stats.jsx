@@ -18,6 +18,7 @@ export default function Stats({ state }) {
   return (
     <div className="panel">
       <h2>{team.name} — Season {state.season} stats (per game)</h2>
+      <div className="table-scroll">
       <table>
         <thead>
           <tr>
@@ -42,6 +43,7 @@ export default function Stats({ state }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

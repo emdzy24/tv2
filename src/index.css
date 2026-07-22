@@ -105,6 +105,10 @@ h3 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spa
   border: 1px solid rgba(255,255,255,0.15);
 }
 
+/* Horizontal scroll wrapper for wide tables on small screens */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 460px; }
+
 /* Table */
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
@@ -150,3 +154,15 @@ tr.me td { background: rgba(255,106,0,0.08); }
 .seg button.on { background: var(--orange); color: #1a0f00; font-weight: 700; }
 
 .footer-note { margin-top: 26px; color: var(--muted); font-size: 12px; text-align: center; }
+
+/* Mobile */
+@media (max-width: 640px) {
+  .app { padding: 14px 10px 50px; }
+  .panel { padding: 14px; }
+  h1 { font-size: 21px; }
+  .scoreline { gap: 8px; }
+  .scoreline .score { font-size: 30px; }
+  .scoreline .team-side .muted { display: none; }
+  .nav button { padding: 7px 11px; font-size: 13px; }
+  .team-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}

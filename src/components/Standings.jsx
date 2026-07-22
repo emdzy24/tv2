@@ -6,6 +6,7 @@ export default function Standings({ state, standings }) {
   return (
     <div className="panel">
       <h2>Standings — Season {state.season}</h2>
+      <div className="table-scroll">
       <table>
         <thead>
           <tr>
@@ -50,6 +51,7 @@ export default function Standings({ state, standings }) {
           })}
         </tbody>
       </table>
+      </div>
       <p className="footer-note" style={{ textAlign: 'left', marginTop: 12 }}>
         Top 8 (green) qualify for the playoffs. Tiebreak: point differential.
       </p>

@@ -48,6 +48,7 @@ export default function Roster({ team, lineup, onLineupChange }) {
       </div>
 
       <div className="panel">
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -118,6 +119,7 @@ export default function Roster({ team, lineup, onLineupChange }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
