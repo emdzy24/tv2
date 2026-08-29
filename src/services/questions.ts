@@ -1,3 +1,4 @@
+import { drawFromBank, loadBank, rememberUsed, toCells } from './bank'
 import {
   POINT_VALUES,
   type Category,
@@ -44,11 +45,37 @@ export async function generateBoard(
   const results = new Array<GeneratedCategory | null>(request.categories.length).fill(null)
   const used: string[] = []
   const failures: string[] = []
+
+  // Anything the bank already holds is instant and free; only the rest is
+  // written live. An empty bank simply means every category falls through.
+  const pending: number[] = []
+  if (USE_MOCK) {
+    pending.push(...request.categories.map((_, index) => index))
+  } else {
+    const drawn = drawFromBank(
+      await loadBank(),
+      request.categories,
+      request.language,
+      request.difficulty,
+    )
+    const servedIds: string[] = []
+    drawn.forEach((set, index) => {
+      if (!set) return pending.push(index)
+      const cells = toCells(set)
+      results[index] = { cells, prompts: cells.map((cell) => cell.question.prompt) }
+      used.push(...results[index]!.prompts)
+      servedIds.push(set.id)
+      done = Math.min(total, done + POINT_VALUES.length)
+    })
+    rememberUsed(servedIds)
+    onProgress(done, total)
+  }
+
   let next = 0
 
   const worker = async () => {
-    while (next < request.categories.length) {
-      const index = next++
+    while (next < pending.length) {
+      const index = pending[next++]
       const name = request.categories[index]
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 
@@ -71,9 +98,7 @@ export async function generateBoard(
     }
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, request.categories.length) }, worker),
-  )
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker))
 
   const categories = results
     .map((result, index) =>
@@ -86,6 +111,7 @@ export async function generateBoard(
   if (!categories.length) {
     throw new Error(failures[0] ?? 'No questions could be written for this board.')
   }
+  onProgress(total, total)
   return categories
 }
 
