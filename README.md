@@ -42,4 +42,9 @@ When a game starts, the board is written up front — one request per category t
 4. **Drop** — a question that still fails is left off the board rather than
    holding up the game. Its category simply has fewer values to pick from.
 
+Both calls use `claude-sonnet-5` by default — quiz facts sit well within its
+range, and it costs roughly 40% of Opus 5. A 15-category game runs in the region
+of $0.40. Set `QUIZ_MODEL` or `QUIZ_VERIFY_MODEL` to `claude-opus-5` to raise
+either half without touching code.
+
 The API key lives only in the Vercel function's environment.

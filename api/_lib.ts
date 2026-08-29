@@ -2,7 +2,14 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 
-export const MODEL = 'claude-opus-5'
+/**
+ * Sonnet 5 writes the questions and checks them: quiz facts are well within its
+ * range at a fraction of Opus pricing, and the verification pass is what
+ * actually protects quality. Raise either to 'claude-opus-5' with an
+ * environment variable if the questions disappoint.
+ */
+export const GENERATION_MODEL = process.env.QUIZ_MODEL || 'claude-sonnet-5'
+export const VERIFICATION_MODEL = process.env.QUIZ_VERIFY_MODEL || 'claude-sonnet-5'
 
 export type Language = 'en' | 'es' | 'lt'
 export type Difficulty = 'casual' | 'balanced' | 'hard'
@@ -123,7 +130,7 @@ export async function generateSet(
   avoid: string[],
 ): Promise<QuestionSet> {
   const response = await client().messages.parse({
-    model: MODEL,
+    model: GENERATION_MODEL,
     max_tokens: 16000,
     system: SYSTEM,
     thinking: { type: 'adaptive' },
@@ -136,7 +143,7 @@ export async function generateSet(
 
 export async function verifySet(set: QuestionSet, language: Language): Promise<Verdict> {
   const response = await client().messages.parse({
-    model: MODEL,
+    model: VERIFICATION_MODEL,
     max_tokens: 16000,
     system: SYSTEM,
     thinking: { type: 'adaptive' },
