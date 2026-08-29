@@ -11,3 +11,16 @@ beat the clock — and if you miss, the next team steals it for half.
 
 > 🚧 Early development. See **[GUIDELINES.md](./GUIDELINES.md)** for the full
 > rules, settings and build plan.
+
+## Running it
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # type-check + production build
+```
+
+Questions currently come from a placeholder generator in
+`src/services/questions.ts`, so the whole game is playable before the AI
+service exists. Replacing `mockQuestion` with the real call is the next step —
+the surrounding signature is already the one the live service needs.
