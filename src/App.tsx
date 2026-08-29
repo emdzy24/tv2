@@ -14,7 +14,7 @@ import { POINT_VALUES, type GameState, type Settings } from './types'
 
 type Stage =
   | { kind: 'setup' }
-  | { kind: 'loading'; settings: Settings; done: number; total: number }
+  | { kind: 'loading'; settings: Settings; done: number; total: number; error: string | null }
   | { kind: 'game'; state: GameState }
 
 export function App() {
@@ -42,6 +42,7 @@ export function App() {
       settings,
       done: 0,
       total: settings.categories.length * POINT_VALUES.length,
+      error: null,
     })
 
     try {
@@ -57,8 +58,11 @@ export function App() {
       setStage({ kind: 'game', state: createGame(settings, categories) })
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') return
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Could not build the board', error)
-      setStage({ kind: 'setup' })
+      setStage((current) =>
+        current.kind === 'loading' ? { ...current, error: message } : { kind: 'setup' },
+      )
     }
   }
 
@@ -74,7 +78,19 @@ export function App() {
   }
 
   if (stage.kind === 'setup') return <SetupScreen onStart={startGame} />
-  if (stage.kind === 'loading') return <LoadingScreen done={stage.done} total={stage.total} t={t} />
+  if (stage.kind === 'loading') {
+    const { settings, done, total, error } = stage
+    return (
+      <LoadingScreen
+        done={done}
+        total={total}
+        t={t}
+        error={error}
+        onRetry={() => startGame(settings)}
+        onCancel={() => setStage({ kind: 'setup' })}
+      />
+    )
+  }
 
   const state: GameState = stage.state
   switch (state.phase) {
