@@ -177,13 +177,22 @@ async function mockCategory(
             i === correctIndex ? `${option} (correct)` : option,
           ),
           correctIndex,
+          fact: 'Placeholder background note about this answer.',
+          related: ['Alpha — first', 'Bravo — second', 'Charlie — third'],
         },
       }
     }
     return {
       value,
       played: false,
-      question: { format: 'open', prompt, answer: 'Vilnius', accepted: ['Vilnius, Lithuania'] },
+      question: {
+        format: 'open',
+        prompt,
+        answer: 'Vilnius',
+        accepted: ['Vilnius, Lithuania'],
+        fact: 'Placeholder background note about this answer.',
+        related: ['Vilnius — 580,000', 'Kaunas — 300,000', 'Klaipėda — 160,000'],
+      },
     }
   })
 

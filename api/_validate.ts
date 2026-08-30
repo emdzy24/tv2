@@ -8,9 +8,15 @@ export const TIERS = [
 
 export type Tier = (typeof TIERS)[number]['tier']
 
+interface Background {
+  /** Shown behind a button after the answer is revealed. */
+  fact: string
+  related: string[]
+}
+
 export type Question =
-  | { format: 'choice'; prompt: string; options: string[]; correctIndex: number }
-  | { format: 'open'; prompt: string; answer: string; accepted: string[] }
+  | ({ format: 'choice'; prompt: string; options: string[]; correctIndex: number } & Background)
+  | ({ format: 'open'; prompt: string; answer: string; accepted: string[] } & Background)
 
 /** Structural checks the model could get wrong regardless of what it claims. */
 export function structurallyValid(set: QuestionSet, tier: Tier): boolean {
@@ -39,6 +45,10 @@ export function applyVerdict(set: QuestionSet, verdict: Verdict): { set: Questio
     const result = verdict.results.find((entry) => entry.tier === tier)
 
     if (tier === 'easy') {
+      if (result?.factProblem) {
+        corrected.easy.fact = ''
+        corrected.easy.related = []
+      }
       if (result && !result.ok) {
         const index = result.correctedIndex
         if (Number.isInteger(index) && index >= 0 && index < corrected.easy.options.length) {
@@ -49,6 +59,12 @@ export function applyVerdict(set: QuestionSet, verdict: Verdict): { set: Questio
       }
     } else {
       const open = corrected[tier]
+      if (result?.factProblem) {
+        // A shaky background note is not worth losing the question over.
+        open.fact = ''
+        open.related = []
+      }
+
       if (result?.extraAccepted?.length) {
         open.accepted = [...new Set([...open.accepted, ...result.extraAccepted])].filter(Boolean)
       }
@@ -71,12 +87,20 @@ export function applyVerdict(set: QuestionSet, verdict: Verdict): { set: Questio
 }
 
 export function toQuestion(set: QuestionSet, tier: Tier): Question {
+  // The schema asks for both, but a missing one must never cost us the question.
+  const background = (source: Partial<Background>): Background => ({
+    fact: source.fact?.trim() ?? '',
+    // Five lines is all the reveal screen has room for.
+    related: (source.related ?? []).map((line) => line.trim()).filter(Boolean).slice(0, 5),
+  })
+
   if (tier === 'easy') {
     return {
       format: 'choice',
       prompt: set.easy.prompt.trim(),
       options: set.easy.options.map((option) => option.trim()),
       correctIndex: set.easy.correctIndex,
+      ...background(set.easy),
     }
   }
   const open = set[tier]
@@ -85,6 +109,7 @@ export function toQuestion(set: QuestionSet, tier: Tier): Question {
     prompt: open.prompt.trim(),
     answer: open.answer.trim(),
     accepted: open.accepted.map((entry) => entry.trim()).filter(Boolean),
+    ...background(open),
   }
 }
 

@@ -30,8 +30,16 @@ export interface Settings {
   targetScore: number
 }
 
+/** Context shown behind a button once the answer is out. */
+export interface Background {
+  /** A sentence or two on why the answer is interesting. */
+  fact?: string
+  /** A few short lines putting the answer in context, e.g. the rest of a top five. */
+  related?: string[]
+}
+
 /** A 2-point multiple-choice question. */
-export interface ChoiceQuestion {
+export interface ChoiceQuestion extends Background {
   format: 'choice'
   prompt: string
   options: string[]
@@ -39,7 +47,7 @@ export interface ChoiceQuestion {
 }
 
 /** A 4- or 6-point typed-answer question. */
-export interface OpenQuestion {
+export interface OpenQuestion extends Background {
   format: 'open'
   prompt: string
   answer: string
