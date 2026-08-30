@@ -118,6 +118,7 @@ export function App() {
           state={state}
           t={t}
           onDecide={(accept) => dispatch({ type: 'steal', accept })}
+          onOverride={(correct) => dispatch({ type: 'override', correct })}
         />
       )
     case 'gameover':

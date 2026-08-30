@@ -135,9 +135,15 @@ function judge(state: GameState, given: string, at: number, timedOut: boolean): 
     speedBonusApplied,
   }
 
+  const ownerIndex = state.teams.findIndex((t) => t.id === active.ownerTeamId)
+  const nextIndex = (ownerIndex + 1) % state.teams.length
+  const stealable = !correct && active.attempt === 'owner' && state.teams.length > 1
+
   return {
     ...state,
-    phase: 'reveal',
+    // The answer must stay hidden while a steal is still live.
+    phase: stealable ? 'steal-offer' : 'reveal',
+    stealTeamId: stealable ? state.teams[nextIndex].id : state.stealTeamId,
     teams: award(state.teams, active.teamId, points),
     judgement,
   }
@@ -173,7 +179,8 @@ export function reduce(state: GameState, action: Action): GameState {
       return judge(state, '', action.at, true)
 
     case 'override': {
-      if (state.phase !== 'reveal' || !state.active || !state.judgement) return state
+      const overridable = state.phase === 'reveal' || state.phase === 'steal-offer'
+      if (!overridable || !state.active || !state.judgement) return state
       const { active, judgement } = state
       if (judgement.correct === action.correct) return state
 
@@ -187,6 +194,9 @@ export function reduce(state: GameState, action: Action): GameState {
       )
       return {
         ...state,
+        // Ruling the answer correct cancels the steal and settles the question.
+        phase: action.correct ? 'reveal' : state.phase,
+        stealTeamId: action.correct ? null : state.stealTeamId,
         teams: award(teamsWithoutOld, active.teamId, points),
         judgement: {
           ...judgement,
@@ -210,8 +220,10 @@ export function reduce(state: GameState, action: Action): GameState {
         return resolveQuestion(state, active.attempt === 'steal' ? stealerIndex : nextIndex)
       }
 
-      // Only the next team in order may steal, and only after the owner misses.
-      if (active.attempt === 'owner' && state.teams.length > 1) {
+      // The host can overturn a correct answer here, which opens a steal that
+      // was never offered. A steal already offered leaves stealTeamId set, so
+      // a declined one is not offered twice.
+      if (active.attempt === 'owner' && state.teams.length > 1 && !state.stealTeamId) {
         return {
           ...state,
           phase: 'steal-offer',
@@ -223,10 +235,8 @@ export function reduce(state: GameState, action: Action): GameState {
 
     case 'steal': {
       if (state.phase !== 'steal-offer' || !state.active || !state.stealTeamId) return state
-      const ownerIndex = state.teams.findIndex((t) => t.id === state.active!.ownerTeamId)
-      const nextIndex = (ownerIndex + 1) % state.teams.length
-
-      if (!action.accept) return resolveQuestion(state, nextIndex)
+      // Declining ends the question, so the answer can finally be shown.
+      if (!action.accept) return { ...state, phase: 'reveal' }
 
       return {
         ...state,
