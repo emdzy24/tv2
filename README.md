@@ -16,11 +16,35 @@ beat the clock — and if you miss, the next team steals it for half.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # type-check + production build
+cp .env.example .env      # add your ANTHROPIC_API_KEY
+npm run dev               # http://localhost:5173
+npm run build             # type-check + production build
 ```
 
-Questions currently come from a placeholder generator in
-`src/services/questions.ts`, so the whole game is playable before the AI
-service exists. Replacing `mockQuestion` with the real call is the next step —
-the surrounding signature is already the one the live service needs.
+`npm run dev` serves the UI but not the `/api` functions. To exercise the real
+question service locally, run `vercel dev` instead; to work on the UI with no
+API at all, set `VITE_USE_MOCK_QUESTIONS=true` and placeholder questions are
+used.
+
+## How questions are made
+
+When a game starts, the board is written up front — one request per category to
+`/api/generate`, three categories at a time:
+
+1. **Generate** — one call to Claude writes all three questions for the category
+   (2-point multiple choice, 4- and 6-point typed answers) in the chosen
+   language, at the chosen difficulty, avoiding anything already on the board.
+2. **Verify** — a second call re-checks every question: is the answer factually
+   correct, is exactly one multiple-choice option right, is it unambiguous, is
+   it in the right language. Corrections are folded back in.
+3. **Retry once** — anything the verifier couldn't repair triggers one more
+   attempt, if there is time left in the request.
+4. **Drop** — a question that still fails is left off the board rather than
+   holding up the game. Its category simply has fewer values to pick from.
+
+Both calls use `claude-sonnet-5` by default — quiz facts sit well within its
+range, and it costs roughly 40% of Opus 5. A 15-category game runs in the region
+of $0.40. Set `QUIZ_MODEL` or `QUIZ_VERIFY_MODEL` to `claude-opus-5` to raise
+either half without touching code.
+
+The API key lives only in the Vercel function's environment.

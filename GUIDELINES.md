@@ -76,10 +76,11 @@ on the game runs with zero waiting.
 - **Per question the generator receives:** language, category, point value
   (shaped by the difficulty setting), and the required format (4-option multiple
   choice at 2 points, open text at 4 and 6).
-- **Verification pass:** every generated question is checked by a second AI pass
-  that confirms the stated answer is actually correct, that a multiple-choice
-  question has exactly one correct option, and that the question is answerable.
-  Anything that fails is regenerated.
+- **Verification pass:** every generated set is checked by a second call that
+  confirms the stated answer is correct, that a multiple-choice question has
+  exactly one correct option, that nothing is ambiguous, and that it is in the
+  right language. Corrections are applied; anything unfixable is regenerated
+  once, then dropped.
 - **No duplicates** within a game.
 - **Structured output:** questions come back in a fixed schema — prompt,
   options (MC only), correct answer, accepted alternate answers.

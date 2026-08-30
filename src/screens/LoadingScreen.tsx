@@ -4,12 +4,36 @@ interface Props {
   done: number
   total: number
   t: Translate
+  error?: string | null
+  onRetry?: () => void
+  onCancel?: () => void
 }
 
 /** Each tile flips over as its question comes back, so progress is felt, not read. */
-export function LoadingScreen({ done, total, t }: Props) {
+export function LoadingScreen({ done, total, t, error, onRetry, onCancel }: Props) {
   const cells = Array.from({ length: total }, (_, i) => i)
   const percent = total > 0 ? (done / total) * 100 : 0
+
+  if (error) {
+    return (
+      <div className="screen">
+        <div className="loading">
+          <div>
+            <span className="eyebrow">{t('generationFailed')}</span>
+            <h2>{error}</h2>
+          </div>
+          <div className="row" style={{ justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={onRetry}>
+              {t('tryAgain')}
+            </button>
+            <button className="btn btn-ghost" onClick={onCancel}>
+              {t('backToSetup')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="screen">
